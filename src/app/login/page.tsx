@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/Button";
 import { authApi, saveToken } from "@/lib/api";
 
 const GOOGLE_CLIENT_ID =
-  "955074871643-447ms8vjjvi4h8got694oqi6ohkhhq0s.apps.googleusercontent.com";
+  "149964995044-l1ama192qc1jcjlatta0j22qv0cb2l9j.apps.googleusercontent.com";
 
 declare global {
   interface Window {
