@@ -25,4 +25,9 @@ export const authApi = {
     api.post('/api/auth-service/v1/password', { old_password, new_password }),
   referral: async () =>
     unwrap(await api.get<{ code: string; url: string }>('/api/auth-service/v1/me/referral')),
+
+  googleLogin: (idToken: string) =>
+    api.post<TokenOutput & { user?: { id: number; email: string; first_name: string; last_name: string; created: boolean } }>(
+      '/api/auth-service/v1/auth/google', { id_token: idToken }
+    ),
 };
