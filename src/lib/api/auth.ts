@@ -10,11 +10,11 @@ export const authApi = {
     api.post<TokenOutput>('/api/core/auth/refresh', { refresh_token: refreshToken }),
 
   me: () =>
-    api.get<User>('/api/auth-service/v1/me/'),
+    api.get<User>('/api/auth-service/v1/me'),
   updateMe: (data: Partial<User>) =>
-    api.patch<User>('/api/auth-service/v1/me/', data),
+    api.patch<User>('/api/auth-service/v1/me', data),
   changePassword: (old_password: string, new_password: string) =>
-    api.post('/api/auth-service/v1/password/', { old_password, new_password }),
+    api.post('/api/auth-service/v1/password', { old_password, new_password }),
   referral: () =>
-    api.get<{ code: string; url: string }>('/api/auth-service/v1/me/referral/'),
+    api.get<{ code: string; url: string }>('/api/auth-service/v1/me/referral'),
 };
