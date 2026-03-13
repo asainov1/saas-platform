@@ -12,6 +12,7 @@ import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { useOrganization } from "@/lib/providers/OrganizationProvider";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { coreApi } from "@/lib/api";
+import { demoStore } from "@/lib/api/demo-store";
 import type { Agent } from "@/lib/api";
 
 const statusMap: Record<string, { label: string; variant: "success" | "warning" | "default" }> = {
@@ -31,12 +32,21 @@ export default function AgentsPage() {
 
   const { data, isLoading } = useQuery({
     queryKey: ["agents", orgId],
-    queryFn: () => coreApi.getAgents(orgId!),
+    queryFn: () => {
+      if (demoStore.isDemoMode()) return demoStore.getAgents();
+      return coreApi.getAgents(orgId!);
+    },
     enabled: !!orgId,
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (agentId: number) => coreApi.deleteAgent(orgId!, agentId),
+    mutationFn: (agentId: number) => {
+      if (demoStore.isDemoMode()) {
+        demoStore.deleteAgent(agentId);
+        return Promise.resolve();
+      }
+      return coreApi.deleteAgent(orgId!, agentId);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["agents", orgId] });
       setDeleteTarget(null);

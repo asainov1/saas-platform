@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { useOrganization } from "@/lib/providers/OrganizationProvider";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { coreApi } from "@/lib/api";
+import { demoStore } from "@/lib/api/demo-store";
 import type { AgentPrompt } from "@/lib/api";
 
 const promptTypes = [
@@ -24,9 +25,11 @@ export default function PromptsPage() {
   const { currentOrg } = useOrganization();
   const agentId = Number(params.id);
 
+  const isDemo = demoStore.isDemoMode();
+
   const { data: prompts, isLoading } = useQuery({
     queryKey: ["prompts", agentId],
-    queryFn: () => coreApi.getPrompts(agentId),
+    queryFn: () => isDemo ? demoStore.getPrompts(agentId) : coreApi.getPrompts(agentId),
     enabled: !!agentId,
   });
 
@@ -37,12 +40,17 @@ export default function PromptsPage() {
 
   const updateMutation = useMutation({
     mutationFn: ({ promptId, content }: { promptId: number; content: string }) =>
-      coreApi.updatePrompt(agentId, promptId, { content }),
+      isDemo
+        ? Promise.resolve(demoStore.updatePrompt(agentId, promptId, { content }))
+        : coreApi.updatePrompt(agentId, promptId, { content }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["prompts", agentId] }),
   });
 
   const createMutation = useMutation({
-    mutationFn: () => coreApi.createPrompt(agentId, { type: newType, content: newContent }),
+    mutationFn: () =>
+      isDemo
+        ? Promise.resolve(demoStore.createPrompt(agentId, { type: newType, content: newContent }))
+        : coreApi.createPrompt(agentId, { type: newType, content: newContent }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["prompts", agentId] });
       setShowNew(false);
@@ -51,7 +59,10 @@ export default function PromptsPage() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (promptId: number) => coreApi.deletePrompt(agentId, promptId),
+    mutationFn: (promptId: number) =>
+      isDemo
+        ? Promise.resolve(demoStore.deletePrompt(agentId, promptId))
+        : coreApi.deletePrompt(agentId, promptId),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["prompts", agentId] }),
   });
 

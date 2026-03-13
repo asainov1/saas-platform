@@ -98,9 +98,14 @@ async function request<T>(
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
     if (res.status === 401) {
-      removeToken();
-      if (typeof window !== "undefined") {
-        window.location.href = "/login";
+      // Don't remove token or redirect in demo mode
+      const tokenMatch = document.cookie.match(/(?:^|; )flowly_token=([^;]*)/);
+      const isDemo = tokenMatch && tokenMatch[1].endsWith(".demo");
+      if (!isDemo) {
+        removeToken();
+        if (typeof window !== "undefined") {
+          window.location.href = "/login";
+        }
       }
     }
     throw new ApiError(

@@ -18,6 +18,7 @@ import { Card } from "@/components/ui/Card";
 import { useOrganization } from "@/lib/providers/OrganizationProvider";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { coreApi } from "@/lib/api";
+import { demoStore } from "@/lib/api/demo-store";
 import { LLM_MODELS } from "@/lib/constants/models";
 
 const agentTypes = [
@@ -45,17 +46,21 @@ export default function NewAgentPage() {
   const createMutation = useMutation({
     mutationFn: async () => {
       if (!currentOrg) throw new Error("No organization");
-      const agent = await coreApi.createAgent(currentOrg.id, {
-        name: name || "Новый агент",
-        type: selectedType,
-        description,
-      });
 
+      const input = { name: name || "Новый агент", type: selectedType, description };
+
+      if (demoStore.isDemoMode()) {
+        const agent = demoStore.createAgent(currentOrg.id, input);
+        if (instructions) demoStore.createPrompt(agent.id, { type: "system", content: instructions });
+        demoStore.createLLM(agent.id, { model });
+        return agent;
+      }
+
+      const agent = await coreApi.createAgent(currentOrg.id, input);
       if (instructions) {
         await coreApi.createPrompt(agent.id, { type: "system", content: instructions });
       }
       await coreApi.createLLM(agent.id, { model });
-
       return agent;
     },
     onSuccess: (agent) => {

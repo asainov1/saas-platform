@@ -1,32 +1,14 @@
 "use client";
 
-import { useState, useEffect, useCallback, Suspense } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useState, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { authApi, saveToken } from "@/lib/api";
 
-const GOOGLE_CLIENT_ID =
-  "149964995044-l1ama192qc1jcjlatta0j22qv0cb2l9j.apps.googleusercontent.com";
-
-declare global {
-  interface Window {
-    google?: {
-      accounts: {
-        id: {
-          initialize: (config: Record<string, unknown>) => void;
-          renderButton: (element: HTMLElement, config: Record<string, unknown>) => void;
-        };
-      };
-    };
-  }
-}
-
 function LoginForm() {
   const searchParams = useSearchParams();
-  const router = useRouter();
   const next = searchParams.get("next") || "/";
   const [loading, setLoading] = useState(false);
-  const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState("");
 
   const handleLogin = async () => {
@@ -43,63 +25,24 @@ function LoginForm() {
     }
   };
 
-  const handleGoogleCallback = useCallback(
-    async (response: { credential: string }) => {
-      setError("");
-      setGoogleLoading(true);
-      try {
-        const tokenData = await authApi.googleLogin(response.credential);
-        saveToken(tokenData.access_token, tokenData.expires_in);
-
-        if (tokenData.refresh_token) {
-          await fetch("/api/auth/callback", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              refresh_token: tokenData.refresh_token,
-              expires_in: tokenData.expires_in,
-            }),
-          });
-        }
-
-        router.replace(next);
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : "Ошибка авторизации через Google";
-        setError(msg);
-        setGoogleLoading(false);
-      }
-    },
-    [next, router]
-  );
-
-  useEffect(() => {
-    const script = document.createElement("script");
-    script.src = "https://accounts.google.com/gsi/client";
-    script.async = true;
-    script.defer = true;
-    script.onload = () => {
-      window.google?.accounts.id.initialize({
-        client_id: GOOGLE_CLIENT_ID,
-        callback: handleGoogleCallback,
-      });
-      const btnContainer = document.getElementById("google-signin-btn");
-      if (btnContainer) {
-        window.google?.accounts.id.renderButton(btnContainer, {
-          type: "standard",
-          theme: "filled_black",
-          size: "large",
-          text: "signin_with",
-          shape: "rectangular",
-          width: 360,
-          locale: "ru",
-        });
-      }
-    };
-    document.head.appendChild(script);
-    return () => {
-      document.head.removeChild(script);
-    };
-  }, [handleGoogleCallback]);
+  const handleDemoLogin = () => {
+    const header = btoa(JSON.stringify({ alg: "HS256", typ: "JWT" }));
+    const payload = btoa(
+      JSON.stringify({
+        user_id: 1,
+        email: "demo@flowlyai.kz",
+        first_name: "Demo",
+        last_name: "User",
+        is_active: true,
+        is_staff: false,
+        is_superuser: false,
+        organization_ids: [1],
+        exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24,
+      })
+    );
+    saveToken(`${header}.${payload}.demo`, 60 * 60 * 24);
+    window.location.href = next;
+  };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#09090b] px-4">
@@ -119,20 +62,20 @@ function LoginForm() {
             <p className="text-sm text-red-400 mb-4">{error}</p>
           )}
 
-          <div className="flex justify-center mb-4">
-            {googleLoading ? (
-              <div className="h-[44px] flex items-center justify-center">
-                <div className="h-5 w-5 border-2 border-violet-500 border-t-transparent rounded-full animate-spin" />
-              </div>
-            ) : (
-              <div id="google-signin-btn" />
-            )}
-          </div>
+          <button
+            onClick={handleDemoLogin}
+            className="w-full py-3 rounded-lg bg-violet-600 hover:bg-violet-500 transition-colors text-sm font-medium text-white mb-4"
+          >
+            Войти как демо-пользователь
+          </button>
 
-          <div className="flex items-center gap-3 my-4">
-            <div className="flex-1 h-px bg-zinc-700" />
-            <span className="text-xs text-zinc-500">или</span>
-            <div className="flex-1 h-px bg-zinc-700" />
+          <div className="relative mb-4">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-white/10" />
+            </div>
+            <div className="relative flex justify-center text-xs">
+              <span className="bg-[#0c0c0f] px-2 text-zinc-500">или</span>
+            </div>
           </div>
 
           <Button
@@ -140,10 +83,12 @@ function LoginForm() {
             loading={loading}
             className="w-full"
             size="lg"
-            variant="secondary"
           >
-            Войти через email
+            Войти через Google
           </Button>
+          <p className="text-xs text-zinc-500 mt-4 text-center">
+            Вы будете перенаправлены на страницу авторизации
+          </p>
         </div>
       </div>
     </div>

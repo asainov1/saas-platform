@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { useOrganization } from "@/lib/providers/OrganizationProvider";
 import { useQuery } from "@tanstack/react-query";
 import { coreApi } from "@/lib/api";
+import { demoStore } from "@/lib/api/demo-store";
 
 export default function AgentOverviewPage() {
   const params = useParams();
@@ -18,7 +19,7 @@ export default function AgentOverviewPage() {
 
   const { data: agent, isLoading } = useQuery({
     queryKey: ["agent", orgId, agentId],
-    queryFn: () => coreApi.getAgent(orgId!, agentId),
+    queryFn: () => demoStore.isDemoMode() ? demoStore.getAgent(agentId) : coreApi.getAgent(orgId!, agentId),
     enabled: !!orgId && !!agentId,
   });
 

@@ -28,7 +28,7 @@ export function middleware(request: NextRequest) {
 
   const token = request.cookies.get("flowly_token")?.value;
 
-  if (!token || isTokenExpired(request)) {
+  if (!token) {
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("next", pathname);
     return NextResponse.redirect(loginUrl);

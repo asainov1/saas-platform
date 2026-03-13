@@ -62,6 +62,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const refreshUser = useCallback(async () => {
+    // Check for demo token first — skip API call entirely
+    const match = document.cookie.match(/(?:^|; )flowly_token=([^;]*)/);
+    if (match && match[1].endsWith(".demo")) {
+      try {
+        const payload = JSON.parse(atob(match[1].split(".")[1]));
+        if (payload.email) {
+          setUser({
+            id: payload.user_id || 1,
+            email: payload.email,
+            first_name: payload.first_name || "Demo",
+            last_name: payload.last_name || "User",
+            phone_number: null,
+            is_active: true,
+            is_staff: false,
+            is_superuser: payload.is_superuser || false,
+            email_verified: true,
+            locale: "ru",
+            zoneinfo: "Asia/Almaty",
+            preferred_theme: "dark",
+            date_joined: new Date().toISOString(),
+            last_login: new Date().toISOString(),
+          });
+          return;
+        }
+      } catch { /* not a valid demo token */ }
+    }
+
     try {
       const u = await authApi.me();
       setUser(u);

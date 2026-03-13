@@ -10,6 +10,7 @@ import { useAuth } from "@/lib/providers/AuthProvider";
 import { useOrganization } from "@/lib/providers/OrganizationProvider";
 import { useQuery } from "@tanstack/react-query";
 import { coreApi, analyticsApi, billingApi, notificationsApi } from "@/lib/api";
+import { demoStore } from "@/lib/api/demo-store";
 import type { Notification } from "@/lib/api";
 
 export default function DashboardPage() {
@@ -18,28 +19,30 @@ export default function DashboardPage() {
   const router = useRouter();
   const orgId = currentOrg?.id;
 
+  const isDemo = demoStore.isDemoMode();
+
   const { data: agentsData } = useQuery({
     queryKey: ["agents", orgId],
-    queryFn: () => coreApi.getAgents(orgId!),
+    queryFn: () => isDemo ? demoStore.getAgents() : coreApi.getAgents(orgId!),
     enabled: !!orgId,
   });
 
   const { data: summaryData } = useQuery({
     queryKey: ["analytics-summary", orgId],
     queryFn: () => analyticsApi.summaries(orgId!),
-    enabled: !!orgId,
+    enabled: !!orgId && !isDemo,
   });
 
   const { data: balanceData } = useQuery({
     queryKey: ["balance", orgId],
     queryFn: () => billingApi.getBalance(orgId!),
-    enabled: !!orgId,
+    enabled: !!orgId && !isDemo,
   });
 
   const { data: notifsData } = useQuery({
     queryKey: ["notifications", orgId],
     queryFn: () => notificationsApi.list({ organization_id: orgId!, limit: 5 }),
-    enabled: !!orgId,
+    enabled: !!orgId && !isDemo,
   });
 
   const loading = authLoading || orgLoading;

@@ -57,7 +57,16 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
           setCurrentOrgState(saved || orgs[0]);
         }
       } catch {
-        setOrganizations([]);
+        // Fallback: create demo organization
+        const demoOrg: Organization = {
+          id: 1,
+          name: "Demo Organization",
+          slug: "demo",
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+        setOrganizations([demoOrg]);
+        setCurrentOrgState(demoOrg);
       } finally {
         setLoading(false);
       }
