@@ -91,21 +91,46 @@ export default function BillingPage() {
         setTransactions(txRes.results);
         setTxTotal(txRes.count);
       } catch {
-        setTransactions([]);
+        // Demo transactions
+        setBalance("245000");
+        setTransactions([
+          { id: "t1", organization_id: 1, type: "real", purpose: "income", source: "card", amount: "50000", description: "Пополнение с карты •••• 4242", data: {}, created_at: "2026-03-13T09:00:00Z" },
+          { id: "t2", organization_id: 1, type: "real", purpose: "expense", source: "system", amount: "3200", description: "GPT-4o: 45,000 токенов — Маркетолог", data: {}, created_at: "2026-03-12T18:00:00Z" },
+          { id: "t3", organization_id: 1, type: "real", purpose: "expense", source: "system", amount: "1800", description: "Claude 3.5: 32,000 токенов — HR-рекрутер", data: {}, created_at: "2026-03-12T14:00:00Z" },
+          { id: "t4", organization_id: 1, type: "bonus", purpose: "income", source: "system", amount: "10000", description: "Бонус за реферала", data: {}, created_at: "2026-03-11T10:00:00Z" },
+          { id: "t5", organization_id: 1, type: "real", purpose: "expense", source: "system", amount: "4500", description: "GPT-4o: 62,000 токенов — Kaspi Магазин", data: {}, created_at: "2026-03-10T20:00:00Z" },
+          { id: "t6", organization_id: 1, type: "real", purpose: "income", source: "card", amount: "100000", description: "Пополнение с карты •••• 4242", data: {}, created_at: "2026-03-08T09:00:00Z" },
+          { id: "t7", organization_id: 1, type: "real", purpose: "expense", source: "system", amount: "2100", description: "GPT-4o-mini: 98,000 токенов — Чат-бот", data: {}, created_at: "2026-03-07T16:00:00Z" },
+        ]);
+        setTxTotal(7);
       }
 
       try {
         const ar = await billingApi.getAutoReplenishment(orgId);
         setAutoReplenish(ar);
       } catch {
-        setAutoReplenish(null);
+        setAutoReplenish({
+          id: "ar1",
+          organization_id: 1,
+          is_enabled: true,
+          replenishment_amount: "50000",
+          balance_threshold: "10000",
+        });
       }
 
       try {
         const tu = await billingApi.tokenUsageGrouped(orgId);
         setTokenUsage(tu);
       } catch {
-        setTokenUsage([]);
+        const demoUsage: TokenUsageGrouped[] = [];
+        for (let i = 14; i >= 0; i--) {
+          const d = new Date();
+          d.setDate(d.getDate() - i);
+          const dateStr = d.toISOString().split("T")[0];
+          demoUsage.push({ model: "GPT-4o", date: dateStr, input_tokens: Math.floor(Math.random() * 50000) + 10000, output_tokens: Math.floor(Math.random() * 20000) + 5000 });
+          demoUsage.push({ model: "Claude 3.5", date: dateStr, input_tokens: Math.floor(Math.random() * 30000) + 5000, output_tokens: Math.floor(Math.random() * 15000) + 3000 });
+        }
+        setTokenUsage(demoUsage);
       }
 
       setLoading(false);

@@ -49,7 +49,18 @@ export default function NotificationsPage() {
     notificationsApi
       .list({ organization_id: orgId, limit: 50 })
       .then((res) => setNotifications(res.results))
-      .catch(() => setNotifications([]))
+      .catch(() => {
+        // Demo notifications
+        setNotifications([
+          { id: "n1", organization_id: 1, agent_id: "a1", type: "error", title: "Ошибка функции", description: "Маркетолог: не удалось опубликовать пост в Instagram — истёк токен", is_read: false, data: {}, created_at: new Date(Date.now() - 1000 * 60 * 5).toISOString() },
+          { id: "n2", organization_id: 1, agent_id: "e5", type: "agent", title: "Новый диалог", description: "HR-рекрутер начал интервью с кандидатом Алия Т.", is_read: false, data: {}, created_at: new Date(Date.now() - 1000 * 60 * 30).toISOString() },
+          { id: "n3", organization_id: 1, agent_id: null, type: "billing", title: "Лимит токенов 80%", description: "Использовано 80% месячного лимита токенов. Рекомендуем пополнить баланс.", is_read: false, data: {}, created_at: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString() },
+          { id: "n4", organization_id: 1, agent_id: null, type: "billing", title: "Баланс пополнен", description: "На счёт зачислено 50,000 ₸ с карты •••• 4242", is_read: true, data: {}, created_at: new Date(Date.now() - 1000 * 60 * 60 * 5).toISOString() },
+          { id: "n5", organization_id: 1, agent_id: "m3", type: "agent", title: "Агент активирован", description: "Чат-бот «Kaspi Магазин» успешно запущен и подключён к WhatsApp", is_read: true, data: {}, created_at: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString() },
+          { id: "n6", organization_id: 1, agent_id: "i9", type: "error", title: "Агент приостановлен", description: "Голосовой агент «Клиника Аль-Фараби» приостановлен из-за ошибки SIP-подключения", is_read: true, data: {}, created_at: new Date(Date.now() - 1000 * 60 * 60 * 48).toISOString() },
+          { id: "n7", organization_id: 1, agent_id: null, type: "billing", title: "Подписка продлена", description: "Pro тариф автоматически продлён. Следующее списание: 13 апреля 2026", is_read: true, data: {}, created_at: new Date(Date.now() - 1000 * 60 * 60 * 72).toISOString() },
+        ]);
+      })
       .finally(() => setLoading(false));
   }, [user, authLoading]);
 

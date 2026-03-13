@@ -32,6 +32,7 @@ export default function DashboardPage() {
     }
 
     const load = async () => {
+      // Try real API first, fall back to demo data
       try {
         const summary = await analyticsApi.summaries(orgId);
         setStats((s) => ({
@@ -39,7 +40,15 @@ export default function DashboardPage() {
           messages: summary.total_messages,
           dialogues: summary.total_dialogues,
         }));
-      } catch {}
+      } catch {
+        // Demo data
+        setStats({
+          agents: 6,
+          messages: 6557,
+          dialogues: 1088,
+          balance: "245,000",
+        });
+      }
 
       try {
         const notifs = await notificationsApi.list({
@@ -47,7 +56,66 @@ export default function DashboardPage() {
           limit: 5,
         });
         setNotifications(notifs.results);
-      } catch {}
+      } catch {
+        // Demo notifications
+        setNotifications([
+          {
+            id: "1",
+            organization_id: 1,
+            agent_id: "a1b2c3d4",
+            type: "tokens",
+            title: "Лимит токенов 80%",
+            description: "Агент «Маркетолог — ИП Алиев» использовал 80% месячного лимита токенов",
+            is_read: false,
+            data: {},
+            created_at: new Date(Date.now() - 1000 * 60 * 15).toISOString(),
+          },
+          {
+            id: "2",
+            organization_id: 1,
+            agent_id: "e5f6g7h8",
+            type: "function_errors",
+            title: "Ошибка функции",
+            description: "HR-рекрутер: не удалось отправить email кандидату",
+            is_read: false,
+            data: {},
+            created_at: new Date(Date.now() - 1000 * 60 * 60).toISOString(),
+          },
+          {
+            id: "3",
+            organization_id: 1,
+            agent_id: null,
+            type: "balance",
+            title: "Баланс пополнен",
+            description: "На счёт зачислено 50,000 ₸ с карты •••• 4242",
+            is_read: true,
+            data: {},
+            created_at: new Date(Date.now() - 1000 * 60 * 60 * 3).toISOString(),
+          },
+          {
+            id: "4",
+            organization_id: 1,
+            agent_id: "m3n4o5p6",
+            type: "channel_disconnection",
+            title: "Канал переподключён",
+            description: "WhatsApp канал для «Kaspi Магазин» успешно переподключён",
+            is_read: true,
+            data: {},
+            created_at: new Date(Date.now() - 1000 * 60 * 60 * 5).toISOString(),
+          },
+          {
+            id: "5",
+            organization_id: 1,
+            agent_id: null,
+            type: "subscriptions",
+            title: "Подписка продлена",
+            description: "Pro тариф продлён до 13 апреля 2026",
+            is_read: true,
+            data: {},
+            created_at: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(),
+          },
+        ]);
+      }
 
       setLoading(false);
     };
