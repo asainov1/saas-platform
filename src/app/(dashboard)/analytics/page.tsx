@@ -4,9 +4,9 @@ import { useEffect, useState } from "react";
 import { MessageSquare, MessagesSquare, Zap, Clock } from "lucide-react";
 import { StatCard } from "@/components/ui/StatCard";
 import { Card } from "@/components/ui/Card";
-import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { useAuth } from "@/lib/providers/AuthProvider";
+import { useOrganization } from "@/lib/providers/OrganizationProvider";
 import { analyticsApi } from "@/lib/api";
 import type { AnalyticsSummary, HistogramPoint } from "@/lib/api";
 import {
@@ -38,7 +38,8 @@ function getDateRange(range: Range) {
 }
 
 export default function AnalyticsPage() {
-  const { user, loading: authLoading } = useAuth();
+  const { loading: authLoading } = useAuth();
+  const { currentOrg, loading: orgLoading } = useOrganization();
   const [range, setRange] = useState<Range>("30d");
   const [loading, setLoading] = useState(true);
   const [summary, setSummary] = useState<AnalyticsSummary | null>(null);
@@ -47,12 +48,8 @@ export default function AnalyticsPage() {
   const [convRate, setConvRate] = useState(0);
 
   useEffect(() => {
-    if (authLoading || !user) return;
-    const orgId = user.organization_ids?.[0];
-    if (!orgId) {
-      setLoading(false);
-      return;
-    }
+    if (authLoading || orgLoading || !currentOrg) return;
+    const orgId = currentOrg.id;
 
     const params = getDateRange(range);
     setLoading(true);
@@ -62,69 +59,42 @@ export default function AnalyticsPage() {
         const s = await analyticsApi.summaries(orgId, params);
         setSummary(s);
       } catch {
-        setSummary({
-          total_messages: 6557,
-          total_dialogues: 1088,
-          total_function_calls: 3421,
-          avg_processing_time: 234,
-          conversion_rate: 0.68,
-        });
+        setSummary(null);
       }
 
       try {
         const m = await analyticsApi.messageHistogram(orgId, params);
         setMessageHist(m.data);
       } catch {
-        // Generate demo histogram
-        const days = range === "7d" ? 7 : range === "30d" ? 30 : 90;
-        const demoData: HistogramPoint[] = [];
-        for (let i = days; i >= 0; i--) {
-          const d = new Date();
-          d.setDate(d.getDate() - i);
-          demoData.push({
-            timestamp: d.toISOString(),
-            count: Math.floor(Math.random() * 300) + 100,
-          });
-        }
-        setMessageHist(demoData);
+        setMessageHist([]);
       }
 
       try {
         const d = await analyticsApi.dialogueHistogram(orgId, params);
         setDialogueHist(d.data);
       } catch {
-        const days = range === "7d" ? 7 : range === "30d" ? 30 : 90;
-        const demoData: HistogramPoint[] = [];
-        for (let i = days; i >= 0; i--) {
-          const d = new Date();
-          d.setDate(d.getDate() - i);
-          demoData.push({
-            timestamp: d.toISOString(),
-            count: Math.floor(Math.random() * 50) + 20,
-          });
-        }
-        setDialogueHist(demoData);
+        setDialogueHist([]);
       }
 
       try {
         const c = await analyticsApi.conversionRate(orgId, params);
         setConvRate(c.rate);
       } catch {
-        setConvRate(0.68);
+        setConvRate(0);
       }
 
       setLoading(false);
     };
 
     load();
-  }, [user, authLoading, range]);
+  }, [currentOrg, authLoading, orgLoading, range]);
 
   const formatDate = (ts: string) => {
     const d = new Date(ts);
     return `${d.getDate()}.${String(d.getMonth() + 1).padStart(2, "0")}`;
   };
 
-  if (authLoading || loading) {
+  if (authLoading || orgLoading || loading) {
     return (
       <div className="space-y-6">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

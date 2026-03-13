@@ -2,14 +2,17 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Search, Bot } from "lucide-react";
+import { Plus, Search, Bot, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
 import { Table, type Column } from "@/components/ui/Table";
 import { Badge } from "@/components/ui/Badge";
 import { Card } from "@/components/ui/Card";
+import { Skeleton } from "@/components/ui/Skeleton";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { useOrganization } from "@/lib/providers/OrganizationProvider";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { coreApi } from "@/lib/api";
 import type { Agent } from "@/lib/api";
-import { getDemoAgents } from "@/lib/demo-agents";
 
 const statusMap: Record<string, { label: string; variant: "success" | "warning" | "default" }> = {
   active: { label: "Активен", variant: "success" },
@@ -17,38 +20,80 @@ const statusMap: Record<string, { label: string; variant: "success" | "warning" 
   draft: { label: "Черновик", variant: "default" },
 };
 
-const columns: Column<Agent>[] = [
-  { key: "name", label: "Имя" },
-  { key: "type", label: "Тип" },
-  {
-    key: "status",
-    label: "Статус",
-    render: (agent: Agent) => {
-      const s = statusMap[agent.status] || statusMap.draft;
-      return <Badge variant={s.variant}>{s.label}</Badge>;
-    },
-  },
-  { key: "total_messages", label: "Сообщения" },
-  {
-    key: "created_at",
-    label: "Создан",
-    render: (agent: Agent) =>
-      new Date(agent.created_at).toLocaleDateString("ru-RU"),
-  },
-];
-
 export default function AgentsPage() {
   const router = useRouter();
+  const queryClient = useQueryClient();
+  const { currentOrg, loading: orgLoading } = useOrganization();
   const [search, setSearch] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState<Agent | null>(null);
 
-  const allAgents = getDemoAgents();
+  const orgId = currentOrg?.id;
 
+  const { data, isLoading } = useQuery({
+    queryKey: ["agents", orgId],
+    queryFn: () => coreApi.getAgents(orgId!),
+    enabled: !!orgId,
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (agentId: number) => coreApi.deleteAgent(orgId!, agentId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["agents", orgId] });
+      setDeleteTarget(null);
+    },
+  });
+
+  const allAgents = data?.agents || [];
   const agents = allAgents.filter(
     (a) =>
       !search ||
       a.name.toLowerCase().includes(search.toLowerCase()) ||
       a.type.toLowerCase().includes(search.toLowerCase())
   );
+
+  const columns: Column<Agent>[] = [
+    { key: "name", label: "Имя" },
+    { key: "type", label: "Тип" },
+    {
+      key: "status",
+      label: "Статус",
+      render: (agent: Agent) => {
+        const s = statusMap[agent.status] || statusMap.draft;
+        return <Badge variant={s.variant}>{s.label}</Badge>;
+      },
+    },
+    { key: "total_messages", label: "Сообщения" },
+    {
+      key: "created_at",
+      label: "Создан",
+      render: (agent: Agent) =>
+        new Date(agent.created_at).toLocaleDateString("ru-RU"),
+    },
+    {
+      key: "id",
+      label: "",
+      render: (agent: Agent) => (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            setDeleteTarget(agent);
+          }}
+          className="p-1.5 rounded-lg hover:bg-red-500/10 text-zinc-500 hover:text-red-400 transition-colors"
+        >
+          <Trash2 className="h-4 w-4" />
+        </button>
+      ),
+    },
+  ];
+
+  if (orgLoading || isLoading) {
+    return (
+      <div className="space-y-6">
+        <Skeleton variant="card" />
+        <Skeleton variant="card" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -100,9 +145,19 @@ export default function AgentsPage() {
             columns={columns}
             data={agents}
             emptyMessage="Агенты не найдены"
+            onRowClick={(agent) => router.push(`/agents/${agent.id}`)}
           />
         )}
       </Card>
+
+      <ConfirmDialog
+        open={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}
+        title="Удалить агента"
+        description={`Вы уверены, что хотите удалить агента "${deleteTarget?.name}"? Это действие нельзя отменить.`}
+        loading={deleteMutation.isPending}
+      />
     </div>
   );
 }

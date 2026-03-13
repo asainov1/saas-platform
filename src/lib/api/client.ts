@@ -1,5 +1,6 @@
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
 const TOKEN_KEY = "flowly_token";
+const TOKEN_EXP_KEY = "flowly_token_exp";
 
 function getToken(): string | null {
   if (typeof window === "undefined") return null;
@@ -7,12 +8,18 @@ function getToken(): string | null {
   return match ? match[1] : null;
 }
 
-export function saveToken(token: string) {
-  document.cookie = `${TOKEN_KEY}=${token}; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Lax`;
+export function saveToken(token: string, expiresIn?: number) {
+  const maxAge = expiresIn || 60 * 60 * 24 * 7;
+  document.cookie = `${TOKEN_KEY}=${token}; path=/; max-age=${maxAge}; SameSite=Lax`;
+  if (expiresIn) {
+    const expTimestamp = Math.floor(Date.now() / 1000) + expiresIn;
+    document.cookie = `${TOKEN_EXP_KEY}=${expTimestamp}; path=/; max-age=${maxAge}; SameSite=Lax`;
+  }
 }
 
 export function removeToken() {
   document.cookie = `${TOKEN_KEY}=; path=/; max-age=0`;
+  document.cookie = `${TOKEN_EXP_KEY}=; path=/; max-age=0`;
 }
 
 class ApiError extends Error {
@@ -29,6 +36,32 @@ class ApiError extends Error {
 
 export { ApiError };
 
+let isRefreshing = false;
+let refreshPromise: Promise<boolean> | null = null;
+
+async function tryRefresh(): Promise<boolean> {
+  if (isRefreshing && refreshPromise) return refreshPromise;
+  isRefreshing = true;
+  refreshPromise = (async () => {
+    try {
+      const res = await fetch("/api/auth/refresh", { method: "POST" });
+      if (!res.ok) return false;
+      const data = await res.json();
+      if (data.access_token) {
+        saveToken(data.access_token, data.expires_in);
+        return true;
+      }
+      return false;
+    } catch {
+      return false;
+    } finally {
+      isRefreshing = false;
+      refreshPromise = null;
+    }
+  })();
+  return refreshPromise;
+}
+
 async function request<T>(
   path: string,
   options: RequestInit = {}
@@ -43,10 +76,24 @@ async function request<T>(
     headers["Authorization"] = `Bearer ${token}`;
   }
 
-  const res = await fetch(`${API_BASE}${path}`, {
+  let res = await fetch(`${API_BASE}${path}`, {
     ...options,
     headers,
   });
+
+  if (res.status === 401) {
+    const refreshed = await tryRefresh();
+    if (refreshed) {
+      const newToken = getToken();
+      if (newToken) {
+        headers["Authorization"] = `Bearer ${newToken}`;
+      }
+      res = await fetch(`${API_BASE}${path}`, {
+        ...options,
+        headers,
+      });
+    }
+  }
 
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
@@ -67,6 +114,35 @@ async function request<T>(
   return res.json();
 }
 
+async function uploadRequest<T>(
+  path: string,
+  formData: FormData
+): Promise<T> {
+  const token = getToken();
+  const headers: Record<string, string> = {};
+
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: "POST",
+    headers,
+    body: formData,
+  });
+
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new ApiError(
+      data.detail || `Upload failed: ${res.status}`,
+      res.status,
+      data
+    );
+  }
+
+  return res.json();
+}
+
 export const api = {
   get: <T>(path: string) => request<T>(path),
   post: <T>(path: string, body?: unknown) =>
@@ -76,4 +152,5 @@ export const api = {
   put: <T>(path: string, body?: unknown) =>
     request<T>(path, { method: "PUT", body: body ? JSON.stringify(body) : undefined }),
   delete: <T>(path: string) => request<T>(path, { method: "DELETE" }),
+  upload: <T>(path: string, formData: FormData) => uploadRequest<T>(path, formData),
 };

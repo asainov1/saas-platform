@@ -10,17 +10,27 @@ export interface User {
   is_superuser: boolean;
   email_verified: boolean;
   locale: string;
-  timezone: string;
-  theme: string;
+  zoneinfo: string;
+  preferred_theme: string;
   date_joined: string;
   last_login: string | null;
-  organization_ids: number[];
 }
 
-export interface AuthTokens {
+export interface TokenOutput {
   access_token: string;
+  token_type: string;
+  expires_in: number;
   refresh_token?: string;
-  user: User;
+  scope?: string;
+}
+
+// ===================== ORGANIZATION =====================
+export interface Organization {
+  id: number;
+  name: string;
+  slug: string;
+  created_at: string;
+  updated_at: string;
 }
 
 // ===================== ANALYTICS =====================
@@ -153,7 +163,7 @@ export interface Subscription {
 
 // ===================== AGENTS =====================
 export interface Agent {
-  id: string;
+  id: number;
   name: string;
   type: string;
   organization_id: number;
@@ -166,10 +176,127 @@ export interface Agent {
   total_dialogues: number;
 }
 
+export interface AgentDetail extends Agent {
+  wait_time: number;
+  history_messages_count: number;
+  history_dialogues_count: number;
+  is_spam_protection_enabled: boolean;
+  channels: Channel[];
+  functions: AgentFunction[];
+  integrations: Integration[];
+  prompts: AgentPrompt[];
+  llm: AgentLLM | null;
+}
+
+export interface Channel {
+  id: number;
+  agent_id: number;
+  type: "telegram" | "whatsapp" | "instagram" | "website" | "wazzup";
+  name: string;
+  is_active: boolean;
+  config: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface AgentFunction {
+  id: number;
+  agent_id: number;
+  name: string;
+  description: string;
+  is_active: boolean;
+  parameters: Record<string, unknown>;
+  integrations: number[];
+  post_actions: string[];
+  created_at: string;
+}
+
+export interface Integration {
+  id: number;
+  agent_id: number;
+  type: "google_drive" | "google_calendar" | "bitrix24" | "amocrm";
+  name: string;
+  is_active: boolean;
+  config: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface AgentPrompt {
+  id: number;
+  agent_id: number;
+  type: "system" | "start" | "error" | "org_context";
+  content: string;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface AgentLLM {
+  id: number;
+  agent_id: number;
+  model: string;
+  temperature: number;
+  max_tokens: number;
+  created_at: string;
+}
+
+// ===================== THREADS =====================
+export interface Thread {
+  id: number;
+  agent_id: number;
+  external_id: string;
+  channel_type: string;
+  status: "active" | "paused" | "closed";
+  name: string;
+  messages_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ThreadMessage {
+  id: number;
+  thread_id: number;
+  role: "user" | "assistant" | "system" | "manager";
+  content: string;
+  metadata: Record<string, unknown>;
+  created_at: string;
+}
+
+// ===================== RAG =====================
+export interface KnowledgeBase {
+  id: number;
+  agent_id: number;
+  name: string;
+  description: string;
+  collection_name: string;
+  top_k: number;
+  chunk_size: number;
+  chunk_overlap: number;
+  documents_count: number;
+  created_at: string;
+}
+
+// ===================== FOLLOW-UPS =====================
+export interface FollowUp {
+  id: number;
+  agent_id: number;
+  trigger_prompt: string;
+  trigger_after: number;
+  mode: "once" | "recurring";
+  schedule_behavior: string;
+  is_active: boolean;
+  created_at: string;
+}
+
 // ===================== PAGINATION =====================
 export interface PaginatedResponse<T> {
   count: number;
   next: string | null;
   previous: string | null;
   results: T[];
+}
+
+// ===================== INPUTS =====================
+export interface CreateAgentInput {
+  name: string;
+  type?: string;
+  description?: string;
 }

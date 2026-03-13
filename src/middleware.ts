@@ -1,17 +1,14 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-const PUBLIC_PATHS = ["/login"];
+const PUBLIC_PATHS = ["/login", "/callback"];
 
-function isTokenExpired(token: string): boolean {
-  try {
-    const payload = JSON.parse(atob(token.split(".")[1]));
-    const exp = payload.exp;
-    if (!exp) return false;
-    return Date.now() >= exp * 1000;
-  } catch {
-    return true;
-  }
+function isTokenExpired(request: NextRequest): boolean {
+  const expStr = request.cookies.get("flowly_token_exp")?.value;
+  if (!expStr) return true;
+  const exp = parseInt(expStr, 10);
+  if (isNaN(exp)) return true;
+  return Date.now() >= (exp - 60) * 1000;
 }
 
 export function middleware(request: NextRequest) {
@@ -31,7 +28,7 @@ export function middleware(request: NextRequest) {
 
   const token = request.cookies.get("flowly_token")?.value;
 
-  if (!token || isTokenExpired(token)) {
+  if (!token || isTokenExpired(request)) {
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("next", pathname);
     return NextResponse.redirect(loginUrl);

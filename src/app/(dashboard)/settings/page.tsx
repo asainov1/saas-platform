@@ -4,13 +4,16 @@ import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
+import { Toggle } from "@/components/ui/Toggle";
 import { useAuth } from "@/lib/providers/AuthProvider";
+import { useOrganization } from "@/lib/providers/OrganizationProvider";
 import { authApi, notificationsApi } from "@/lib/api";
 import type { NotificationSettings } from "@/lib/api";
 import { ExternalLink } from "lucide-react";
 
 export default function SettingsPage() {
   const { user, refreshUser, loading: authLoading } = useAuth();
+  const { currentOrg } = useOrganization();
 
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -33,14 +36,14 @@ export default function SettingsPage() {
     setLastName(user.last_name || "");
     setPhone(user.phone_number || "");
 
-    const orgId = user.organization_ids?.[0];
+    const orgId = currentOrg?.id;
     if (orgId) {
       notificationsApi
         .getSettings(orgId)
         .then(setNotifSettings)
         .catch(() => {});
     }
-  }, [user]);
+  }, [user, currentOrg]);
 
   const saveProfile = async () => {
     setProfileLoading(true);
@@ -79,7 +82,7 @@ export default function SettingsPage() {
     key: keyof NotificationSettings,
     value: boolean
   ) => {
-    const orgId = user?.organization_ids?.[0];
+    const orgId = currentOrg?.id;
     if (!orgId || !notifSettings) return;
     try {
       const updated = await notificationsApi.updateSettings(orgId, {
@@ -119,7 +122,6 @@ export default function SettingsPage() {
         </p>
       </div>
 
-      {/* Profile */}
       <Card title="Профиль">
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
@@ -152,7 +154,6 @@ export default function SettingsPage() {
         </div>
       </Card>
 
-      {/* Password */}
       <Card title="Смена пароля">
         <form onSubmit={changePassword} className="space-y-4">
           <Input
@@ -181,37 +182,37 @@ export default function SettingsPage() {
         </form>
       </Card>
 
-      {/* Notification settings */}
+      {currentOrg && (
+        <Card title="Организация">
+          <div className="space-y-3 text-sm">
+            <div className="flex justify-between">
+              <span className="text-zinc-500">Название</span>
+              <span className="text-white">{currentOrg.name}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-zinc-500">ID</span>
+              <span className="text-zinc-400 font-mono">{currentOrg.id}</span>
+            </div>
+          </div>
+        </Card>
+      )}
+
       {notifSettings && (
         <Card title="Уведомления">
           <div className="space-y-4">
             {notifToggles.map(({ key, label }) => (
               <div key={key} className="flex items-center justify-between">
                 <span className="text-sm text-zinc-300">{label}</span>
-                <button
-                  onClick={() =>
-                    toggleNotifSetting(
-                      key,
-                      !(notifSettings[key] as boolean)
-                    )
-                  }
-                  className={`relative w-10 h-5 rounded-full transition-colors ${
-                    notifSettings[key] ? "bg-violet-600" : "bg-white/10"
-                  }`}
-                >
-                  <span
-                    className={`absolute top-0.5 h-4 w-4 rounded-full bg-white transition-transform ${
-                      notifSettings[key] ? "left-5" : "left-0.5"
-                    }`}
-                  />
-                </button>
+                <Toggle
+                  checked={notifSettings[key] as boolean}
+                  onChange={(val) => toggleNotifSetting(key, val)}
+                />
               </div>
             ))}
           </div>
         </Card>
       )}
 
-      {/* Telegram */}
       <Card title="Telegram">
         <p className="text-sm text-zinc-500 mb-4">
           Привяжите Telegram для получения уведомлений

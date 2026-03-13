@@ -15,6 +15,7 @@ interface TableProps<T> {
   loading?: boolean;
   emptyMessage?: string;
   keyExtractor?: (item: T) => string;
+  onRowClick?: (item: T) => void;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -24,6 +25,7 @@ export function Table<T extends Record<string, any>>({
   loading = false,
   emptyMessage = "Нет данных",
   keyExtractor,
+  onRowClick,
 }: TableProps<T>) {
   return (
     <div className="overflow-x-auto">
@@ -65,7 +67,8 @@ export function Table<T extends Record<string, any>>({
               : data.map((item, idx) => (
                 <tr
                   key={keyExtractor ? keyExtractor(item) : idx}
-                  className="border-b border-white/5 hover:bg-white/[0.02] transition-colors"
+                  onClick={() => onRowClick?.(item)}
+                  className={`border-b border-white/5 hover:bg-white/[0.02] transition-colors ${onRowClick ? "cursor-pointer" : ""}`}
                 >
                   {columns.map((col) => (
                     <td key={col.key} className="py-3 px-4 text-sm text-zinc-300">

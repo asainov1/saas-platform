@@ -1,15 +1,18 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Wallet, Zap } from "lucide-react";
+import { Wallet } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Table, type Column } from "@/components/ui/Table";
 import { Badge } from "@/components/ui/Badge";
 import { Pagination } from "@/components/ui/Pagination";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { Toggle } from "@/components/ui/Toggle";
 import { useAuth } from "@/lib/providers/AuthProvider";
-import { billingApi } from "@/lib/api";
+import { useOrganization } from "@/lib/providers/OrganizationProvider";
+import { useQuery } from "@tanstack/react-query";
+import { billingApi, paymentsApi } from "@/lib/api";
 import type { Transaction, AutoReplenishment, TokenUsageGrouped } from "@/lib/api";
 import {
   BarChart,
@@ -63,83 +66,39 @@ const txColumns: Column<Transaction>[] = [
 ];
 
 export default function BillingPage() {
-  const { user, loading: authLoading } = useAuth();
+  const { loading: authLoading } = useAuth();
+  const { currentOrg, loading: orgLoading } = useOrganization();
   const router = useRouter();
-  const [loading, setLoading] = useState(true);
-  const [balance, setBalance] = useState("0");
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [txTotal, setTxTotal] = useState(0);
   const [txOffset, setTxOffset] = useState(0);
-  const [autoReplenish, setAutoReplenish] = useState<AutoReplenishment | null>(null);
-  const [tokenUsage, setTokenUsage] = useState<TokenUsageGrouped[]>([]);
+  const orgId = currentOrg?.id;
 
-  useEffect(() => {
-    if (authLoading || !user) return;
-    const orgId = user.organization_ids?.[0];
-    if (!orgId) {
-      setLoading(false);
-      return;
-    }
+  const { data: balanceData } = useQuery({
+    queryKey: ["balance", orgId],
+    queryFn: () => billingApi.getBalance(orgId!),
+    enabled: !!orgId,
+  });
 
-    const load = async () => {
-      try {
-        const txRes = await billingApi.listTransactions({
-          organization_id: orgId,
-          limit: LIMIT,
-          offset: txOffset,
-        });
-        setTransactions(txRes.results);
-        setTxTotal(txRes.count);
-      } catch {
-        // Demo transactions
-        setBalance("245000");
-        setTransactions([
-          { id: "t1", organization_id: 1, type: "real", purpose: "income", source: "card", amount: "50000", description: "Пополнение с карты •••• 4242", data: {}, created_at: "2026-03-13T09:00:00Z" },
-          { id: "t2", organization_id: 1, type: "real", purpose: "expense", source: "system", amount: "3200", description: "GPT-4o: 45,000 токенов — Маркетолог", data: {}, created_at: "2026-03-12T18:00:00Z" },
-          { id: "t3", organization_id: 1, type: "real", purpose: "expense", source: "system", amount: "1800", description: "Claude 3.5: 32,000 токенов — HR-рекрутер", data: {}, created_at: "2026-03-12T14:00:00Z" },
-          { id: "t4", organization_id: 1, type: "bonus", purpose: "income", source: "system", amount: "10000", description: "Бонус за реферала", data: {}, created_at: "2026-03-11T10:00:00Z" },
-          { id: "t5", organization_id: 1, type: "real", purpose: "expense", source: "system", amount: "4500", description: "GPT-4o: 62,000 токенов — Kaspi Магазин", data: {}, created_at: "2026-03-10T20:00:00Z" },
-          { id: "t6", organization_id: 1, type: "real", purpose: "income", source: "card", amount: "100000", description: "Пополнение с карты •••• 4242", data: {}, created_at: "2026-03-08T09:00:00Z" },
-          { id: "t7", organization_id: 1, type: "real", purpose: "expense", source: "system", amount: "2100", description: "GPT-4o-mini: 98,000 токенов — Чат-бот", data: {}, created_at: "2026-03-07T16:00:00Z" },
-        ]);
-        setTxTotal(7);
-      }
+  const { data: txData, isLoading: txLoading } = useQuery({
+    queryKey: ["transactions", orgId, txOffset],
+    queryFn: () => billingApi.listTransactions({ organization_id: orgId!, limit: LIMIT, offset: txOffset }),
+    enabled: !!orgId,
+  });
 
-      try {
-        const ar = await billingApi.getAutoReplenishment(orgId);
-        setAutoReplenish(ar);
-      } catch {
-        setAutoReplenish({
-          id: "ar1",
-          organization_id: 1,
-          is_enabled: true,
-          replenishment_amount: "50000",
-          balance_threshold: "10000",
-        });
-      }
+  const { data: autoReplenish } = useQuery({
+    queryKey: ["auto-replenish", orgId],
+    queryFn: () => billingApi.getAutoReplenishment(orgId!),
+    enabled: !!orgId,
+  });
 
-      try {
-        const tu = await billingApi.tokenUsageGrouped(orgId);
-        setTokenUsage(tu);
-      } catch {
-        const demoUsage: TokenUsageGrouped[] = [];
-        for (let i = 14; i >= 0; i--) {
-          const d = new Date();
-          d.setDate(d.getDate() - i);
-          const dateStr = d.toISOString().split("T")[0];
-          demoUsage.push({ model: "GPT-4o", date: dateStr, input_tokens: Math.floor(Math.random() * 50000) + 10000, output_tokens: Math.floor(Math.random() * 20000) + 5000 });
-          demoUsage.push({ model: "Claude 3.5", date: dateStr, input_tokens: Math.floor(Math.random() * 30000) + 5000, output_tokens: Math.floor(Math.random() * 15000) + 3000 });
-        }
-        setTokenUsage(demoUsage);
-      }
+  const { data: tokenUsage } = useQuery({
+    queryKey: ["token-usage-grouped", orgId],
+    queryFn: () => billingApi.tokenUsageGrouped(orgId!),
+    enabled: !!orgId,
+  });
 
-      setLoading(false);
-    };
+  const loading = authLoading || orgLoading;
 
-    load();
-  }, [user, authLoading, txOffset]);
-
-  if (authLoading || loading) {
+  if (loading || txLoading) {
     return (
       <div className="space-y-6">
         <Skeleton variant="card" />
@@ -148,29 +107,12 @@ export default function BillingPage() {
     );
   }
 
-  const orgId = user?.organization_ids?.[0];
+  const balance = balanceData?.balance || "0";
+  const transactions = txData?.results || [];
+  const txTotal = txData?.count || 0;
+  const usageData = tokenUsage || [];
 
-  const toggleAutoReplenish = async () => {
-    if (!orgId) return;
-    try {
-      if (autoReplenish) {
-        const updated = await billingApi.updateAutoReplenishment(orgId, {
-          is_enabled: !autoReplenish.is_enabled,
-        });
-        setAutoReplenish(updated);
-      } else {
-        const created = await billingApi.createAutoReplenishment(orgId, {
-          is_enabled: true,
-          replenishment_amount: "10000",
-          balance_threshold: "1000",
-        });
-        setAutoReplenish(created);
-      }
-    } catch {}
-  };
-
-  // Group token usage by date for chart
-  const chartData = tokenUsage.reduce<Record<string, Record<string, string | number>>>(
+  const chartData = usageData.reduce<Record<string, Record<string, string | number>>>(
     (acc, item) => {
       const date = new Date(item.date).toLocaleDateString("ru-RU");
       if (!acc[date]) acc[date] = { date };
@@ -181,8 +123,7 @@ export default function BillingPage() {
     {}
   );
   const chartArr = Object.values(chartData);
-
-  const models = [...new Set(tokenUsage.map((t) => t.model))];
+  const models = [...new Set(usageData.map((t) => t.model))];
 
   return (
     <div className="space-y-6">
@@ -194,7 +135,6 @@ export default function BillingPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Balance card */}
         <Card className="lg:col-span-1">
           <div className="flex items-center gap-3 mb-4">
             <div className="p-2 rounded-lg bg-violet-600/10">
@@ -208,7 +148,6 @@ export default function BillingPage() {
           <Button className="w-full">Пополнить</Button>
         </Card>
 
-        {/* Auto-replenishment */}
         <Card title="Автопополнение" className="lg:col-span-2">
           <div className="flex items-center justify-between">
             <div>
@@ -223,23 +162,14 @@ export default function BillingPage() {
                 </p>
               )}
             </div>
-            <button
-              onClick={toggleAutoReplenish}
-              className={`relative w-12 h-6 rounded-full transition-colors ${
-                autoReplenish?.is_enabled ? "bg-violet-600" : "bg-white/10"
-              }`}
-            >
-              <span
-                className={`absolute top-1 h-4 w-4 rounded-full bg-white transition-transform ${
-                  autoReplenish?.is_enabled ? "left-7" : "left-1"
-                }`}
-              />
-            </button>
+            <Toggle
+              checked={autoReplenish?.is_enabled || false}
+              onChange={() => {}}
+            />
           </div>
         </Card>
       </div>
 
-      {/* Transactions */}
       <Card title="Транзакции">
         <Table
           columns={txColumns}
@@ -255,7 +185,6 @@ export default function BillingPage() {
         />
       </Card>
 
-      {/* Token usage chart */}
       <Card title="Использование токенов">
         {chartArr.length === 0 ? (
           <p className="text-sm text-zinc-500 py-8 text-center">

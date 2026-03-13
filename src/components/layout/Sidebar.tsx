@@ -14,6 +14,7 @@ import {
   X,
 } from "lucide-react";
 import { useAuth } from "@/lib/providers/AuthProvider";
+import { OrgSwitcher } from "./OrgSwitcher";
 import { useState } from "react";
 
 const navItems = [
@@ -45,6 +46,8 @@ export function Sidebar() {
           <span className="text-lg font-bold text-white">Flowly</span>
         </Link>
       </div>
+
+      <OrgSwitcher />
 
       <nav className="flex-1 px-3 space-y-1">
         {navItems.map((item) => {

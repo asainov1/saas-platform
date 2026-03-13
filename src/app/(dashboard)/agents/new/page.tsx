@@ -11,69 +11,58 @@ import {
   BarChart3,
   ArrowLeft,
   ArrowRight,
-  Check,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Card } from "@/components/ui/Card";
-import { addDemoAgent, getTypeName } from "@/lib/demo-agents";
+import { useOrganization } from "@/lib/providers/OrganizationProvider";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { coreApi } from "@/lib/api";
+import { LLM_MODELS } from "@/lib/constants/models";
 
 const agentTypes = [
-  {
-    id: "chatbot",
-    name: "Чат-бот",
-    description: "Автоматизация общения с клиентами",
-    icon: MessageSquare,
-  },
-  {
-    id: "marketer",
-    name: "Маркетолог",
-    description: "Генерация контента и анализ рынка",
-    icon: Megaphone,
-  },
-  {
-    id: "hr",
-    name: "HR",
-    description: "Подбор и оценка кандидатов",
-    icon: Users,
-  },
-  {
-    id: "browser",
-    name: "Браузерный",
-    description: "Автоматизация веб-действий",
-    icon: Globe,
-  },
-  {
-    id: "voice",
-    name: "Голосовой",
-    description: "Голосовое взаимодействие с клиентами",
-    icon: Phone,
-  },
-  {
-    id: "analytics",
-    name: "Аналитика",
-    description: "Анализ данных и отчётность",
-    icon: BarChart3,
-  },
+  { id: "chatbot", name: "Чат-бот", description: "Автоматизация общения с клиентами", icon: MessageSquare },
+  { id: "marketer", name: "Маркетолог", description: "Генерация контента и анализ рынка", icon: Megaphone },
+  { id: "hr", name: "HR", description: "Подбор и оценка кандидатов", icon: Users },
+  { id: "browser", name: "Браузерный", description: "Автоматизация веб-действий", icon: Globe },
+  { id: "voice", name: "Голосовой", description: "Голосовое взаимодействие с клиентами", icon: Phone },
+  { id: "analytics", name: "Аналитика", description: "Анализ данных и отчётность", icon: BarChart3 },
 ];
 
-const models = [
-  { id: "gpt-4o", name: "GPT-4o" },
-  { id: "gpt-4o-mini", name: "GPT-4o Mini" },
-  { id: "claude-3.5-sonnet", name: "Claude 3.5 Sonnet" },
-  { id: "claude-3-haiku", name: "Claude 3 Haiku" },
-];
-
-const steps = ["Тип агента", "Настройка", "Запуск"];
+const steps = ["Тип агента", "Настройка"];
 
 export default function NewAgentPage() {
   const router = useRouter();
+  const queryClient = useQueryClient();
+  const { currentOrg } = useOrganization();
   const [step, setStep] = useState(0);
   const [selectedType, setSelectedType] = useState("");
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [model, setModel] = useState("gpt-4o");
   const [instructions, setInstructions] = useState("");
+
+  const createMutation = useMutation({
+    mutationFn: async () => {
+      if (!currentOrg) throw new Error("No organization");
+      const agent = await coreApi.createAgent(currentOrg.id, {
+        name: name || "Новый агент",
+        type: selectedType,
+        description,
+      });
+
+      if (instructions) {
+        await coreApi.createPrompt(agent.id, { type: "system", content: instructions });
+      }
+      await coreApi.createLLM(agent.id, { model });
+
+      return agent;
+    },
+    onSuccess: (agent) => {
+      queryClient.invalidateQueries({ queryKey: ["agents"] });
+      router.push(`/agents/${agent.id}`);
+    },
+  });
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
@@ -92,7 +81,6 @@ export default function NewAgentPage() {
         </div>
       </div>
 
-      {/* Step indicator */}
       <div className="flex items-center gap-2">
         {steps.map((s, i) => (
           <div key={s} className="flex items-center gap-2 flex-1">
@@ -105,7 +93,6 @@ export default function NewAgentPage() {
         ))}
       </div>
 
-      {/* Step 1: Type selection */}
       {step === 0 && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {agentTypes.map((type) => {
@@ -138,7 +125,6 @@ export default function NewAgentPage() {
         </div>
       )}
 
-      {/* Step 2: Configuration */}
       {step === 1 && (
         <Card>
           <div className="space-y-5">
@@ -155,15 +141,13 @@ export default function NewAgentPage() {
               onChange={(e) => setDescription(e.target.value)}
             />
             <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-medium text-zinc-400">
-                Модель
-              </label>
+              <label className="text-sm font-medium text-zinc-400">Модель</label>
               <select
                 value={model}
                 onChange={(e) => setModel(e.target.value)}
                 className="w-full rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-violet-600/50"
               >
-                {models.map((m) => (
+                {LLM_MODELS.map((m) => (
                   <option key={m.id} value={m.id} className="bg-zinc-900">
                     {m.name}
                   </option>
@@ -171,9 +155,7 @@ export default function NewAgentPage() {
               </select>
             </div>
             <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-medium text-zinc-400">
-                Инструкции
-              </label>
+              <label className="text-sm font-medium text-zinc-400">Инструкции</label>
               <textarea
                 rows={5}
                 placeholder="Опишите, как агент должен себя вести..."
@@ -182,32 +164,15 @@ export default function NewAgentPage() {
                 className="w-full rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-600/50 resize-none"
               />
             </div>
+            {createMutation.isError && (
+              <p className="text-sm text-red-400">
+                {createMutation.error instanceof Error ? createMutation.error.message : "Ошибка создания агента"}
+              </p>
+            )}
           </div>
         </Card>
       )}
 
-      {/* Step 3: Success */}
-      {step === 2 && (
-        <Card className="text-center py-12">
-          <div className="inline-flex p-4 rounded-2xl bg-emerald-500/10 mb-4">
-            <Check className="h-8 w-8 text-emerald-400" />
-          </div>
-          <h2 className="text-xl font-bold text-white mb-2">Агент создан!</h2>
-          <p className="text-sm text-zinc-500 mb-6">
-            Ваш агент &quot;{name || "Новый агент"}&quot; готов к работе
-          </p>
-          <div className="flex items-center justify-center gap-3">
-            <Button variant="secondary" onClick={() => router.push("/agents")}>
-              К списку агентов
-            </Button>
-            <Button onClick={() => router.push("/agents")}>
-              Открыть агента
-            </Button>
-          </div>
-        </Card>
-      )}
-
-      {/* Navigation */}
       {step < 2 && (
         <div className="flex justify-end gap-3">
           {step > 0 && (
@@ -217,28 +182,17 @@ export default function NewAgentPage() {
           )}
           <Button
             disabled={step === 0 && !selectedType}
+            loading={createMutation.isPending}
             onClick={() => {
-              if (step === 1) {
-                // Save new agent to demo store
-                addDemoAgent({
-                  id: crypto.randomUUID(),
-                  name: name || "Новый агент",
-                  type: getTypeName(selectedType),
-                  organization_id: 1,
-                  status: "active",
-                  model: models.find((m) => m.id === model)?.name || model,
-                  description: description || "",
-                  created_at: new Date().toISOString(),
-                  updated_at: new Date().toISOString(),
-                  total_messages: 0,
-                  total_dialogues: 0,
-                });
+              if (step === 0) {
+                setStep(1);
+              } else {
+                createMutation.mutate();
               }
-              setStep(step + 1);
             }}
           >
             {step === 1 ? "Создать" : "Далее"}
-            <ArrowRight className="h-4 w-4" />
+            {step === 0 && <ArrowRight className="h-4 w-4" />}
           </Button>
         </div>
       )}

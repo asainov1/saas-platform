@@ -2,6 +2,7 @@
 
 import { Search, Bell } from "lucide-react";
 import { useAuth } from "@/lib/providers/AuthProvider";
+import { useOrganization } from "@/lib/providers/OrganizationProvider";
 import { useEffect, useState } from "react";
 import { notificationsApi } from "@/lib/api";
 import Link from "next/link";
@@ -12,15 +13,16 @@ interface TopbarProps {
 
 export function Topbar({ title }: TopbarProps) {
   const { user } = useAuth();
+  const { currentOrg } = useOrganization();
   const [unread, setUnread] = useState(0);
 
   useEffect(() => {
-    if (!user?.organization_ids?.[0]) return;
+    if (!currentOrg) return;
     notificationsApi
-      .unreadCount(user.organization_ids[0])
+      .unreadCount(currentOrg.id)
       .then((r) => setUnread(r.count))
       .catch(() => {});
-  }, [user]);
+  }, [currentOrg]);
 
   return (
     <header className="h-16 border-b border-white/5 flex items-center justify-between px-6 shrink-0">

@@ -1,6 +1,7 @@
 import { api } from "./client";
 import type {
   Transaction,
+  OrganizationBalance,
   AutoReplenishment,
   TokenUsage,
   TokenUsageTotal,
@@ -9,6 +10,9 @@ import type {
 } from "./types";
 
 export const billingApi = {
+  getBalance: (orgId: number) =>
+    api.get<OrganizationBalance>(`/api/billing/balance/${orgId}`),
+
   listTransactions: (params?: {
     organization_id?: number;
     limit?: number;

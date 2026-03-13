@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Bot, MessageSquare, MessagesSquare, Wallet, Plus, CreditCard } from "lucide-react";
 import { StatCard } from "@/components/ui/StatCard";
@@ -8,122 +7,45 @@ import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { useAuth } from "@/lib/providers/AuthProvider";
-import { analyticsApi, notificationsApi } from "@/lib/api";
+import { useOrganization } from "@/lib/providers/OrganizationProvider";
+import { useQuery } from "@tanstack/react-query";
+import { coreApi, analyticsApi, billingApi, notificationsApi } from "@/lib/api";
 import type { Notification } from "@/lib/api";
 
 export default function DashboardPage() {
   const { user, loading: authLoading } = useAuth();
+  const { currentOrg, loading: orgLoading } = useOrganization();
   const router = useRouter();
-  const [stats, setStats] = useState({
-    agents: 0,
-    messages: 0,
-    dialogues: 0,
-    balance: "0",
+  const orgId = currentOrg?.id;
+
+  const { data: agentsData } = useQuery({
+    queryKey: ["agents", orgId],
+    queryFn: () => coreApi.getAgents(orgId!),
+    enabled: !!orgId,
   });
-  const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (authLoading || !user) return;
-    const orgId = user.organization_ids?.[0];
-    if (!orgId) {
-      setLoading(false);
-      return;
-    }
+  const { data: summaryData } = useQuery({
+    queryKey: ["analytics-summary", orgId],
+    queryFn: () => analyticsApi.summaries(orgId!),
+    enabled: !!orgId,
+  });
 
-    const load = async () => {
-      // Try real API first, fall back to demo data
-      try {
-        const summary = await analyticsApi.summaries(orgId);
-        setStats((s) => ({
-          ...s,
-          messages: summary.total_messages,
-          dialogues: summary.total_dialogues,
-        }));
-      } catch {
-        // Demo data
-        setStats({
-          agents: 6,
-          messages: 6557,
-          dialogues: 1088,
-          balance: "245,000",
-        });
-      }
+  const { data: balanceData } = useQuery({
+    queryKey: ["balance", orgId],
+    queryFn: () => billingApi.getBalance(orgId!),
+    enabled: !!orgId,
+  });
 
-      try {
-        const notifs = await notificationsApi.list({
-          organization_id: orgId,
-          limit: 5,
-        });
-        setNotifications(notifs.results);
-      } catch {
-        // Demo notifications
-        setNotifications([
-          {
-            id: "1",
-            organization_id: 1,
-            agent_id: "a1b2c3d4",
-            type: "tokens",
-            title: "Лимит токенов 80%",
-            description: "Агент «Маркетолог — ИП Алиев» использовал 80% месячного лимита токенов",
-            is_read: false,
-            data: {},
-            created_at: new Date(Date.now() - 1000 * 60 * 15).toISOString(),
-          },
-          {
-            id: "2",
-            organization_id: 1,
-            agent_id: "e5f6g7h8",
-            type: "function_errors",
-            title: "Ошибка функции",
-            description: "HR-рекрутер: не удалось отправить email кандидату",
-            is_read: false,
-            data: {},
-            created_at: new Date(Date.now() - 1000 * 60 * 60).toISOString(),
-          },
-          {
-            id: "3",
-            organization_id: 1,
-            agent_id: null,
-            type: "balance",
-            title: "Баланс пополнен",
-            description: "На счёт зачислено 50,000 ₸ с карты •••• 4242",
-            is_read: true,
-            data: {},
-            created_at: new Date(Date.now() - 1000 * 60 * 60 * 3).toISOString(),
-          },
-          {
-            id: "4",
-            organization_id: 1,
-            agent_id: "m3n4o5p6",
-            type: "channel_disconnection",
-            title: "Канал переподключён",
-            description: "WhatsApp канал для «Kaspi Магазин» успешно переподключён",
-            is_read: true,
-            data: {},
-            created_at: new Date(Date.now() - 1000 * 60 * 60 * 5).toISOString(),
-          },
-          {
-            id: "5",
-            organization_id: 1,
-            agent_id: null,
-            type: "subscriptions",
-            title: "Подписка продлена",
-            description: "Pro тариф продлён до 13 апреля 2026",
-            is_read: true,
-            data: {},
-            created_at: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(),
-          },
-        ]);
-      }
+  const { data: notifsData } = useQuery({
+    queryKey: ["notifications", orgId],
+    queryFn: () => notificationsApi.list({ organization_id: orgId!, limit: 5 }),
+    enabled: !!orgId,
+  });
 
-      setLoading(false);
-    };
+  const loading = authLoading || orgLoading;
+  const notifications: Notification[] = notifsData?.results || [];
 
-    load();
-  }, [user, authLoading]);
-
-  if (authLoading || loading) {
+  if (loading) {
     return (
       <div className="space-y-6">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -149,22 +71,22 @@ export default function DashboardPage() {
         <StatCard
           icon={<Bot className="h-5 w-5" />}
           label="Агенты"
-          value={stats.agents}
+          value={agentsData?.agents?.length ?? 0}
         />
         <StatCard
           icon={<MessageSquare className="h-5 w-5" />}
           label="Сообщения"
-          value={stats.messages}
+          value={summaryData?.total_messages ?? 0}
         />
         <StatCard
           icon={<MessagesSquare className="h-5 w-5" />}
           label="Диалоги"
-          value={stats.dialogues}
+          value={summaryData?.total_dialogues ?? 0}
         />
         <StatCard
           icon={<Wallet className="h-5 w-5" />}
           label="Баланс"
-          value={`${stats.balance} ₸`}
+          value={`${balanceData ? parseFloat(balanceData.balance).toLocaleString("ru-RU") : "0"} ₸`}
         />
       </div>
 
