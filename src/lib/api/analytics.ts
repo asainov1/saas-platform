@@ -42,6 +42,6 @@ export const analyticsApi = {
 
   conversionRate: (orgId: number, params?: DateRangeParams) =>
     api.get<ConversionRate>(
-      `/api/analytics/organizations/${orgId}/conversion-rate${buildQuery(params)}`
+      `/api/analytics/organizations/${orgId}/rate/function-conversion${buildQuery(params)}`
     ),
 };

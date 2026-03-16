@@ -28,12 +28,14 @@ type Range = "7d" | "30d" | "90d";
 function getDateRange(range: Range) {
   const end = new Date();
   const start = new Date();
+  let step = 1;
   if (range === "7d") start.setDate(end.getDate() - 7);
   else if (range === "30d") start.setDate(end.getDate() - 30);
-  else start.setDate(end.getDate() - 90);
+  else { start.setDate(end.getDate() - 90); step = 7; }
   return {
     start_date: start.toISOString().split("T")[0],
     end_date: end.toISOString().split("T")[0],
+    step,
   };
 }
 
