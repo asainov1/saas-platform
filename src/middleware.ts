@@ -4,7 +4,7 @@ import type { NextRequest } from "next/server";
 const PUBLIC_PATHS = ["/login", "/callback"];
 
 function isTokenExpired(request: NextRequest): boolean {
-  const expStr = request.cookies.get("flowly_token_exp")?.value;
+  const expStr = request.cookies.get("app_token_exp")?.value;
   if (!expStr) return true;
   const exp = parseInt(expStr, 10);
   if (isNaN(exp)) return true;
@@ -26,7 +26,7 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  const token = request.cookies.get("flowly_token")?.value;
+  const token = request.cookies.get("app_token")?.value;
 
   if (!token) {
     const loginUrl = new URL("/login", request.url);
