@@ -1,15 +1,38 @@
 "use client";
 
-import { useState, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { useState, useRef, useEffect, Suspense } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { authApi, saveToken } from "@/lib/api";
 
+const GOOGLE_CLIENT_ID =
+  "149964995044-l1ama192qc1jcjlatta0j22qv0cb2l9j.apps.googleusercontent.com";
+
+declare global {
+  interface Window {
+    google?: {
+      accounts: {
+        id: {
+          initialize: (config: Record<string, unknown>) => void;
+          renderButton: (element: HTMLElement, config: Record<string, unknown>) => void;
+        };
+        oauth2: {
+          initCodeClient: (config: Record<string, unknown>) => { requestCode: () => void };
+        };
+      };
+    };
+  }
+}
+
 function LoginForm() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const next = searchParams.get("next") || "/";
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState("");
+  const codeClientRef = useRef<{ requestCode: () => void } | null>(null);
+  const [gsiReady, setGsiReady] = useState(false);
 
   const handleLogin = async () => {
     setError("");
@@ -25,23 +48,60 @@ function LoginForm() {
     }
   };
 
-  const handleDemoLogin = () => {
-    const header = btoa(JSON.stringify({ alg: "HS256", typ: "JWT" }));
-    const payload = btoa(
-      JSON.stringify({
-        user_id: 1,
-        email: "demo@flowlyai.kz",
-        first_name: "Demo",
-        last_name: "User",
-        is_active: true,
-        is_staff: false,
-        is_superuser: false,
-        organization_ids: [1],
-        exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24,
-      })
-    );
-    saveToken(`${header}.${payload}.demo`, 60 * 60 * 24);
-    window.location.href = next;
+  useEffect(() => {
+    const script = document.createElement("script");
+    script.src = "https://accounts.google.com/gsi/client";
+    script.async = true;
+    script.defer = true;
+    script.onload = () => {
+      codeClientRef.current = window.google?.accounts.oauth2.initCodeClient({
+        client_id: GOOGLE_CLIENT_ID,
+        scope: "openid email profile",
+        ux_mode: "popup",
+        callback: async (response: { code?: string; error?: string }) => {
+          if (response.error || !response.code) {
+            setError(response.error || "Google авторизация отменена");
+            setGoogleLoading(false);
+            return;
+          }
+
+          setGoogleLoading(true);
+          setError("");
+
+          try {
+            const res = await fetch("/api/auth/google-callback", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ code: response.code }),
+            });
+
+            const data = await res.json();
+
+            if (!res.ok) {
+              throw new Error(data.error || "Ошибка авторизации через Google");
+            }
+
+            saveToken(data.access_token, data.expires_in);
+            router.replace(next);
+          } catch (err: unknown) {
+            const msg = err instanceof Error ? err.message : "Ошибка авторизации через Google";
+            setError(msg);
+            setGoogleLoading(false);
+          }
+        },
+      }) || null;
+      setGsiReady(true);
+    };
+    document.head.appendChild(script);
+    return () => {
+      document.head.removeChild(script);
+    };
+  }, [next, router]);
+
+  const handleGoogleClick = () => {
+    if (codeClientRef.current) {
+      codeClientRef.current.requestCode();
+    }
   };
 
   return (
@@ -63,19 +123,29 @@ function LoginForm() {
           )}
 
           <button
-            onClick={handleDemoLogin}
-            className="w-full py-3 rounded-lg bg-violet-600 hover:bg-violet-500 transition-colors text-sm font-medium text-white mb-4"
+            onClick={handleGoogleClick}
+            disabled={!gsiReady || googleLoading}
+            className="w-full flex items-center justify-center gap-3 h-11 rounded-lg border border-zinc-700 bg-zinc-900 hover:bg-zinc-800 text-white text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Войти как демо-пользователь
+            {googleLoading ? (
+              <div className="h-5 w-5 border-2 border-violet-500 border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <>
+                <svg className="w-5 h-5" viewBox="0 0 24 24">
+                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" />
+                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
+                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
+                </svg>
+                Войти через Google
+              </>
+            )}
           </button>
 
-          <div className="relative mb-4">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-white/10" />
-            </div>
-            <div className="relative flex justify-center text-xs">
-              <span className="bg-[#0c0c0f] px-2 text-zinc-500">или</span>
-            </div>
+          <div className="flex items-center gap-3 my-4">
+            <div className="flex-1 h-px bg-zinc-700" />
+            <span className="text-xs text-zinc-500">или</span>
+            <div className="flex-1 h-px bg-zinc-700" />
           </div>
 
           <Button
@@ -83,12 +153,10 @@ function LoginForm() {
             loading={loading}
             className="w-full"
             size="lg"
+            variant="secondary"
           >
-            Войти через Google
+            Войти через email
           </Button>
-          <p className="text-xs text-zinc-500 mt-4 text-center">
-            Вы будете перенаправлены на страницу авторизации
-          </p>
         </div>
       </div>
     </div>
