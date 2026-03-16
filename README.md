@@ -1,4 +1,4 @@
-# Flowly Platform
+# SaaS Platform
 
 Multi-service SaaS platform for AI workflow automation — built with **Next.js** frontend and **FastAPI** microservices backend.
 
